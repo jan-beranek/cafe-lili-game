@@ -1,0 +1,823 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kávový stánek — MVP prototyp (vanilla JS)</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+      --ink: #222;
+      --muted: #6b6b6b;
+      --brand: #7b4b2a; /* coffee */
+      --good: #22a06b;
+      --bad: #d64545;
+      --panel: #fff;
+      --accent: #e6d7c7;
+      --accent2: #d4e5ef;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; color: var(--ink); background: linear-gradient(180deg,#fbf9f6, #f1ebe5 60%, #e9e1d8); }
+    button { cursor: pointer; transition: transform .06s ease, box-shadow .12s ease, background-color .12s ease; will-change: transform; }
+    button:active { transform: translateY(1px) scale(0.98); box-shadow: inset 0 1px 0 rgba(0,0,0,0.06); }
+
+    #app { display: grid; grid-template-rows: auto 1fr auto; min-height: 100vh; }
+
+    /* Top bar */
+    .topbar { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 8px; padding: 8px 12px; align-items: center; background: rgba(255,255,255,0.7); backdrop-filter: blur(4px); border-bottom: 1px solid #ddd; }
+    .metrics { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .metric { background: var(--panel); border: 1px solid #ddd; border-radius: 8px; padding: 6px 10px; box-shadow: 0 1px 0 rgba(0,0,0,0.05); font-size: 14px; }
+    .sbar { position: relative; height: 10px; background: #eee; border-radius: 999px; overflow: hidden; }
+    .sbar > span { position:absolute; left:0; top:0; bottom:0; width: 50%; background: linear-gradient(90deg, #f5b942, #22a06b); }
+
+    /* Inline payment panel */
+    .payment { display:block; margin-top:8px; padding:8px; border:1px solid #ddd; border-radius:10px; background:#fafafa; }
+    .payment .primary { padding:10px 14px; font-weight:700; border-radius:10px; border:1px solid #b07a51; background:#8a5a3b; color:#fff; box-shadow: 0 1px 0 rgba(0,0,0,0.08); }
+    .payment .pay-row { display:flex; gap:8px; align-items:center; }
+    .payment input { flex:1; padding:8px 10px; font-size:18px; border-radius:10px; border:1px solid #ccc; }
+    .payment .keypad { margin-top:8px; }
+    .payment .pay-error { color: var(--bad); font-size:13px; margin-top:6px; display:none; }
+
+    .dialog-choices { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+    .dialog-choices button { padding: 8px 10px; border-radius: 10px; border: 1px solid #ddd; background: var(--panel); }
+    .dialog-choices button.good { border-color: #b7dfc8; background: #eef9f3; }
+    .dialog-choices button.bad { border-color: #f5c2c2; background: #fff1f1; }
+
+    /* Main */
+    main { display: grid; grid-template-columns: 1.1fr 1.6fr 1.1fr; gap: 10px; padding: 10px 12px; }
+
+    .panel { background: var(--panel); border: 1px solid #ddd; border-radius: 12px; padding: 10px; box-shadow: 0 1px 0 rgba(0,0,0,0.05); }
+
+    .queue { min-height: 120px; display: grid; grid-template-rows: auto 1fr; }
+    .queue-list { display:flex; gap:8px; align-items: center; padding-top: 6px; }
+    .head { width: 36px; height: 36px; border-radius: 50%; background: #e0f0ff; border: 2px solid #99c6e5; display:flex; align-items:center; justify-content:center; font-weight: 700; color:#2a628f; }
+
+    .stage { min-height: 220px; display:grid; grid-template-rows: auto 1fr auto; gap: 6px; }
+    .customer-viewport { min-height: 140px; display:flex; align-items:center; justify-content:center; background: repeating-linear-gradient(45deg, #f8f2ea, #f8f2ea 12px, #f3ece3 12px, #f3ece3 24px); border:1px dashed #d8cfc3; border-radius: 10px; }
+    .cust-bubble { background: #fff; border:1px solid #ddd; padding: 6px 10px; border-radius: 10px; box-shadow: 0 1px 0 rgba(0,0,0,0.05); }
+    .cust-bubble .items { font-weight: 600; }
+
+    /* Current item panel */
+    .current-item { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; color: var(--muted); }
+    .current-item .pill { background:#fafafa; border:1px solid #ddd; border-radius:999px; padding:4px 8px; }
+
+    .workbench { display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .workbench button { height: 46px; border-radius: 12px; border: 1px solid #d6d6d6; background: #fafafa; }
+    .workbench .primary { background: #ffe9d1; border-color: #f2c08f; }
+    .workbench .danger { background: #ffe8e8; border-color: #ffc5c5; color:#a33; }
+
+    .orderpanel { min-height: 220px; }
+    .list { display:flex; flex-direction: column; gap:4px; padding: 4px 0; }
+    .tag { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius: 999px; border:1px solid #ddd; background:#fafafa; font-size: 13px; }
+    .tag.s { background:#eef6ff; border-color:#cfe5ff; }
+    .tag.m { background:#f0ffee; border-color:#cdeaCC; }
+    .tag.l { background:#fff6ee; border-color:#ffdcb9; }
+
+    /* Bottom bar */
+    .bottombar { display:flex; gap:8px; padding:10px 12px; background: rgba(255,255,255,0.85); border-top:1px solid #ddd; align-items:center; flex-wrap:wrap; }
+    .section { display:flex; gap:8px; align-items:center; }
+    .section h4 { margin:0 6px 0 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#f0f0f0; border:1px solid #ddd; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
+
+    /* Modal (už nevyužito pro platbu, ale ponecháno pro budoucí potřeby) */
+    .modal { position: fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,0.45); }
+    .modal .card { width: min(360px, 92vw); background: #fff; border-radius: 12px; border:1px solid #ddd; padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+    .keypad { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:8px; }
+    .keypad button { padding: 14px 0; border-radius: 12px; border:1px solid #ddd; background:#fafafa; font-size: 18px; }
+
+    /* Dev console */
+    .dev { display:none; padding: 8px 12px; background:#0b1220; color:#e8eefc; font-size: 12px; }
+    .dev .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+    .dev table { width:100%; border-collapse: collapse; background:#0f1830; border:1px solid #182544; border-radius: 8px; overflow: hidden; }
+    .dev th, .dev td { padding: 6px 8px; border-bottom:1px solid #22365e; }
+    .dev th { text-align:left; background:#142143; color:#acc4ff; font-weight:600; }
+    .dev .log { max-height: 140px; overflow-y: auto; background:#0e1529; border:1px solid #182544; padding:6px; border-radius: 8px; }
+
+    /* Game over/report */
+    .overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(0,0,0,0.55); }
+    .overlay .report { width: min(520px, 95vw); background:#fff; border:1px solid #ddd; border-radius:12px; padding: 16px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <!-- Left metrics -->
+    <div class="metrics" id="metrics-left">
+      <div class="metric">Čas: <span id="time">00:00</span></div>
+      <div class="metric">Fronta: <span id="queueTop">0</span></div>
+    </div>
+
+    <!-- Dialog choices (center) -->
+    <div class="dialog-choices">
+      <button class="good" id="btnGreeting">Dobrý den! Co si dáte?</button>
+      <button class="good" id="btnConfirm">Potvrdím objednávku</button>
+      <button class="bad" id="btnBad">Nevhodná replika</button>
+    </div>
+
+    <!-- Right metrics -->
+    <div class="metrics" style="justify-content:flex-end">
+      <div class="metric">Pokladna: <strong id="bank">0 Kč</strong></div>
+      <div class="metric">Odbaveno: <span id="served">0</span></div>
+      <div class="metric">Reputace: <span id="reputation">0.0</span></div>
+      <div class="metric" style="min-width:160px">Spokojenost
+        <div class="sbar" title="Spokojenost zákazníka (0–100)"><span id="sbar" style="width:50%"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <section class="panel queue">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <h3 style="margin:0">Fronta</h3>
+        <div class="metric" title="Max 4 viditelné hlavy">Ve frontě: <span id="queueCount">0</span></div>
+      </div>
+      <div class="queue-list" id="queueHeads"></div>
+      <div style="padding-top:6px; font-size: 13px; color: var(--muted)">Aktivní zákazník stojí vlevo (objednávka), po potvrzení přejde doprava (platba).</div>
+    </section>
+
+    <section class="panel stage">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <h3 style="margin:0">Příprava</h3>
+        <div class="metric">Ceník: Káva S/M/L — 39/49/59 Kč</div>
+      </div>
+      <div class="customer-viewport">
+        <div class="cust-bubble" id="bubble">
+          <div>Objednávka: <span class="items" id="orderLabel">—</span></div>
+          <div style="font-size:12px; color:var(--muted)">Fáze: <span id="phase">—</span></div>
+        </div>
+      </div>
+      <div class="current-item" id="currentItemPanel">
+        <strong>Aktuální položka:</strong>
+        <span class="pill" id="curItemLabel">—</span>
+        <span class="pill" id="curItemIngredients">—</span>
+      </div>
+      <div class="workbench">
+        <button id="btnSizeS">Kelímek S</button>
+        <button id="btnSizeM">Kelímek M</button>
+        <button id="btnSizeL">Kelímek L</button>
+        <button class="danger" id="btnTrash">Koš</button>
+
+        <button class="primary" id="btnPot">Konvice: dávka kávy</button>
+        <button id="btnFinalize">Dokončit položku (tap na kelímek)</button><button id="btnToggleDev" title="Zobrazit skrytou konzoli (D)">Dev konzole</button>
+      </div>
+    </section>
+
+    <section class="panel orderpanel">
+      <h3 style="margin:0 0 6px 0">Pravý pult (výdej)</h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px">
+        <div>
+          <div style="font-weight:700">Objednáno</div>
+          <div class="list" id="orderedList"></div>
+        </div>
+        <div>
+          <div style="font-weight:700">Připraveno</div>
+          <div class="list" id="preparedList"></div>
+        </div>
+      </div>
+      <div style="margin-top:8px; font-size:12px; color:var(--muted)">Platbu odemkneme až když se seznamy shodují.</div>
+      <div class="payment" id="paymentPanel">
+        <div class="pay-row">
+          <input id="payInputInline" inputmode="numeric" pattern="[0-9]*" placeholder="Částka v Kč" />
+          <button class="primary" id="btnPayConfirmInline">Potvrdit</button>
+        </div>
+        <div class="keypad" id="keypadInline"></div>
+        <div class="pay-error" id="payErrorInline">Nesprávná částka.</div>
+      </div>
+    </section>
+  </main>
+
+  <div class="bottombar">
+    <div class="section"><h4>Ovládání:</h4>
+      <span class="kbd">Klik</span> na ingredience a kelímky, <span class="kbd">Koš</span> smaže rozpracovanou položku, <span class="kbd">Platbu zadáváš vpravo, pole je stále aktivní (součet se nikde nezobrazuje).
+    </div>
+  </div>
+</div>
+
+<!-- Overlay Report / Game Over -->
+<div class="overlay" id="reportOverlay">
+  <div class="report">
+    <h2 style="margin-top:0" id="reportTitle">Směna skončila</h2>
+    <div id="reportBody"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px">
+      <button id="btnRestart">Restart</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dev console -->
+<div class="dev" id="dev">
+  <div style="margin-bottom:6px">Konzole (toggle <span class="kbd">D</span>) — runtime stav a log</div>
+  <div class="grid">
+    <table>
+      <thead><tr><th colspan="2">Game/Shift</th></tr></thead>
+      <tbody id="tblGame"></tbody>
+    </table>
+    <table>
+      <thead><tr><th colspan="2">Customer</th></tr></thead>
+      <tbody id="tblCust"></tbody>
+    </table>
+    <table>
+      <thead><tr><th colspan="2">Order/Recipe</th></tr></thead>
+      <tbody id="tblOrder"></tbody>
+    </table>
+    <table>
+      <thead><tr><th colspan="2">Economy</th></tr></thead>
+      <tbody id="tblEco"></tbody>
+    </table>
+  </div>
+  <div class="log" id="eventLog"></div>
+</div>
+
+<script>
+// -------------------------------
+// Konfigurace (centrální)
+// -------------------------------
+const CONFIG = {
+  economy: {
+    bankStartCZK: 200,
+    allowNegativeBank: false,
+    tip: { enabled: true, formula: "linear60to8" },
+  },
+  pricesCZK: { coffee: { S: 39, M: 49, L: 59 } },
+  costsCZK: { dose_coffee: 7, cup_S: 3, cup_M: 4, cup_L: 5 },
+  recipes: {
+    coffee: {
+      S: { dose_coffee: 1, cup_S: 1 },
+      M: { dose_coffee: 2, cup_M: 1 },
+      L: { dose_coffee: 3, cup_L: 1 },
+    }
+  },
+  products: [ { id: "coffee", name: "Káva", sizes: ["S","M","L"], trainingVisible: true } ],
+  sizes: ["S","M","L"],
+  denominationsCZK: [1,2,5,10,20,50,100,200,500,1000,2000], // v2 hotovost
+  personas: [
+    { id: "default", name: "Běžný", startSatisfactionRange: [60, 80], decayPerSecond: 0.25 },
+    { id: "rush", name: "Ve spěchu", startSatisfactionRange: [55, 70], decayPerSecond: 0.35 },
+    { id: "chill", name: "V pohodě", startSatisfactionRange: [70, 90], decayPerSecond: 0.15 },
+  ],
+  spawn: { shiftDurationSec: 420, spawnIntervalSec: [8, 12], maxQueueVisual: 4 },
+  orders: { itemCountWeights: { 1: 0.6, 2: 0.3, 3: 0.1 } },
+  satisfaction: {
+    clampMin: 0, clampMax: 100,
+    penaltyScale: { base: 40, min: 0.5, max: 2.0 },
+    rewardScale:  { base: 50, min: 0.5, max: 1.8 },
+    base: { goodGreeting: 3, badReply: -4, wrongItemsAtPayment: -10, fastService: 6, wrongTotalBeforeConfirm: -8 },
+    fastThresholdSec: 15
+  },
+  ui: { dialogChoicesPerPhase: 3, showMenuBoard: true, showRunningTotal: false, devConsole: { enabled: true } },
+};
+
+// -------------------------------
+// Stav hry
+// -------------------------------
+const State = {
+  tickHandle: null,
+  decayHandle: null,
+  spawnTimer: null,
+  shiftRemaining: CONFIG.spawn.shiftDurationSec,
+  bank: CONFIG.economy.bankStartCZK,
+  bankStart: CONFIG.economy.bankStartCZK,
+  customersServed: 0,
+  reputationSum: 0,
+  totalSpent: 0,
+  totalRevenue: 0,
+  queue: [], // čekající objekty zákazníků
+  active: null, // CustomerState
+  phase: 'Idle',
+  preparedForThisOrder: [],
+  currentItem: null, // { productId, size, actual: {ingredient:count} }
+  eventLog: [],
+  gameOver: false,
+};
+
+function logEvent(msg, deltaBank = 0, deltaS = 0) {
+  const t = new Date().toLocaleTimeString();
+  State.eventLog.unshift(`[${t}] ${msg} ${deltaBank?`(ΔKč ${deltaBank})`:''} ${deltaS?`(ΔS ${deltaS})`:''}`);
+  if (State.eventLog.length > 200) State.eventLog.pop();
+}
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function randInt(a,b){ return (a + Math.floor(Math.random()*(b-a+1))); }
+
+function pickPersona() { return CONFIG.personas[(Math.random()*CONFIG.personas.length)|0]; }
+
+function formatOrderLabel(order){
+  if (!order) return '—';
+  return order.items.map(it => `${it.size}`).join(' + ');
+}
+
+// -------------------------------
+// Spokojenost a tipy
+// -------------------------------
+function applyPenalty(base){
+  const S = State.active?.S ?? 50;
+  const sc = CONFIG.satisfaction.penaltyScale;
+  const factor = clamp((100 - S)/sc.base, sc.min, sc.max);
+  const delta = Math.round(base * factor);
+  if (State.active){ State.active.S = clamp(State.active.S - delta, CONFIG.satisfaction.clampMin, CONFIG.satisfaction.clampMax); }
+  return -delta;
+}
+function applyReward(base){
+  const S = State.active?.S ?? 50;
+  const sc = CONFIG.satisfaction.rewardScale;
+  const factor = clamp((100 - S)/sc.base + 0.5, sc.min, sc.max);
+  const delta = Math.round(base * factor);
+  if (State.active){ State.active.S = clamp(State.active.S + delta, CONFIG.satisfaction.clampMin, CONFIG.satisfaction.clampMax); }
+  return +delta;
+}
+function tipFromS(S){
+  if (!CONFIG.economy.tip.enabled) return 0;
+  // linear60to8: max 8 Kč, od S>60
+  return Math.max(0, Math.floor((S/100 - 0.6) * 20));
+}
+
+// -------------------------------
+// Ekonomika
+// -------------------------------
+function spend(cost, label){
+  State.bank -= cost; State.totalSpent += cost;
+  logEvent(`Spotřeba: ${label}`, -cost, 0);
+  if (!CONFIG.economy.allowNegativeBank && State.bank <= 0) {
+    gameOver('Bankrot: došla hotovost.');
+  }
+  render();
+}
+function earn(amount, label){
+  State.bank += amount; State.totalRevenue += amount;
+  logEvent(`Tržba: ${label}`, +amount, 0);
+  render();
+}
+
+// -------------------------------
+// Objednávka a položky
+// -------------------------------
+function chooseItemCount(){
+  const w = CONFIG.orders.itemCountWeights;
+  const r = Math.random();
+  const w1 = w[1] ?? 0.6, w2 = w[2] ?? 0.3, w3 = w[3] ?? 0.1;
+  if (r < w1) return 1; if (r < w1 + w2) return 2; return 3;
+}
+
+function newOrderWeighted(){
+  const n = chooseItemCount();
+  const items = [];
+  for (let i=0;i<n;i++){
+    const size = CONFIG.sizes[(Math.random()*CONFIG.sizes.length)|0];
+    const recipe = CONFIG.recipes.coffee[size];
+    items.push({ productId:'coffee', size, recipe });
+  }
+  return { id: 'ORD'+Date.now(), items, prepared: [] };
+}
+
+function createCustomer(){
+  const persona = pickPersona();
+  const S0 = randInt(persona.startSatisfactionRange[0], persona.startSatisfactionRange[1]);
+  const cust = {
+    id: 'C'+Date.now(),
+    personaId: persona.id,
+    persona,
+    S: S0,
+    phase: 'Ordering',
+    order: null, // vytvoří se až po dotazu zákazníkovi
+    timers: { enteredAt: performance.now(), lastEventAt: performance.now(), preparedAt: null }
+  };
+  return cust;
+}
+
+function promoteNext(){
+  if (!State.active && State.queue.length > 0){
+    const next = State.queue.shift();
+    State.active = next;
+    State.preparedForThisOrder = [];
+    State.currentItem = null;
+    State.phase = 'Ordering';
+    render();
+  }
+}
+
+function scheduleNextSpawn(){
+  if (State.spawnTimer) clearTimeout(State.spawnTimer);
+  const [minS, maxS] = CONFIG.spawn.spawnIntervalSec;
+  const delay = randInt(minS*1000, maxS*1000);
+  State.spawnTimer = setTimeout(()=>{
+    State.queue.push(createCustomer());
+    logEvent('Nový člověk do fronty');
+    promoteNext();
+    render();
+    scheduleNextSpawn();
+  }, delay);
+}
+
+function toPreparing(){
+  if (!State.active) return; 
+  if (!State.active.order){
+    flashPhase('Nejprve přijmi objednávku.');
+    return;
+  }
+  State.active.phase = 'Preparing';
+  State.phase = 'Preparing';
+  render();
+}
+
+function toPayment(){
+  if (!State.active) return;
+  const wanted = State.active.order?.items.length || 0;
+  const ready = State.active.order?.prepared.length || 0;
+  if (ready !== wanted){
+    const d = applyPenalty(CONFIG.satisfaction.base.wrongItemsAtPayment);
+    logEvent('Pokus o platbu se špatným počtem položek', 0, d);
+    render();
+    return;
+  }
+  State.active.phase = 'Payment';
+  State.phase = 'Payment';
+  render();
+}
+
+function finalizeItem(){
+  if (!State.active) return;
+  const it = State.currentItem;
+  if (!it) return;
+  // zkontroluj recept (v1: jen přesné počty, pořadí do budoucna)
+  State.active.order.prepared.push({ productId: it.productId, size: it.size, actual: it.actual });
+  State.currentItem = null;
+  if (State.active.order.prepared.length === State.active.order.items.length){
+    State.active.timers.preparedAt = performance.now();
+  }
+  render();
+}
+
+function pickSize(size){
+  if (!State.active) return;
+  if (State.active.phase === 'Ordering') toPreparing();
+  // založ rozpracovanou položku — kelímek je ingredience
+  const cupId = size==='S'?'cup_S': size==='M'?'cup_M':'cup_L';
+  State.currentItem = { productId:'coffee', size, actual: { [cupId]: 1 } };
+  spend(CONFIG.costsCZK[cupId], `Kelímek ${size}`);
+  render();
+}
+
+function tapPot(){
+  if (!State.active) return;
+  if (State.active.phase !== 'Preparing'){ toPreparing(); }
+  if (!State.currentItem){
+    // špatné pořadí: káva bez kelímku → vylito na pult, náklad se účtuje
+    spend(CONFIG.costsCZK.dose_coffee, 'Dávka kávy (vylito na pult)');
+    logEvent('Chyba pořadí: káva bez kelímku → vylito na pult');
+    flashPhase('Vylito na pult — nejdřív kelímek!');
+    render();
+    return;
+  }
+  // přidej dávku kávy
+  const act = State.currentItem.actual;
+  act.dose_coffee = (act.dose_coffee||0) + 1;
+  spend(CONFIG.costsCZK.dose_coffee, 'Dávka kávy');
+  render();
+}
+
+function trashItem(){
+  if (!State.currentItem) return;
+  State.currentItem = null;
+  logEvent('Koš: rozpracovaná položka zahozena');
+  render();
+}
+
+function orderTotal(order){
+  let sum = 0;
+  for (const it of order.items){ sum += CONFIG.pricesCZK[it.productId][it.size]; }
+  return sum;
+}
+
+function finishPayment(entered){
+  if (!State.active) return;
+  // blokace: musí existovat objednávka a počty se musí shodovat
+  if (!State.active.order){ showPayErrorInline(true); logEvent('Platba bez objednávky'); return false; }
+  const wantedCnt = State.active.order.items.length;
+  const readyCnt = State.active.order.prepared.length;
+  if (wantedCnt !== readyCnt){ showPayErrorInline(true); logEvent('Platba zablokována: neshodují se seznamy'); return false; }
+  const sum = orderTotal(State.active.order);
+  if (entered !== sum){
+    const d = applyPenalty(CONFIG.satisfaction.base.wrongTotalBeforeConfirm);
+    logEvent(`Špatná částka zadána: ${entered} ≠ ${sum}`, 0, d);
+    showPayErrorInline(true);
+    render();
+    return false;
+  }
+  // správně — přičti tržbu a tip, reputace, další zákazník
+  const S = State.active.S;
+  const tip = tipFromS(S);
+  earn(sum + tip, `Platba ${sum} + sprop. ${tip}`);
+
+  // reputace = průměr odcházejících
+  State.customersServed += 1;
+  State.reputationSum += S;
+
+  logEvent(`Zákazník obsloužen (S=${S})`);
+  State.active = null;
+  promoteNext();
+  render();
+  return true;
+}
+
+// -------------------------------
+// Čas a smyčka
+// -------------------------------
+function startShift(){
+  State.shiftRemaining = CONFIG.spawn.shiftDurationSec;
+  State.bank = CONFIG.economy.bankStartCZK;
+  State.bankStart = CONFIG.economy.bankStartCZK;
+  State.customersServed = 0;
+  State.reputationSum = 0;
+  State.totalSpent = 0;
+  State.totalRevenue = 0;
+  State.gameOver = false;
+  State.eventLog = [];
+  State.queue = [];
+
+  // na začátku dej jednoho do fronty a rozjeď spawn
+  State.queue.push(createCustomer());
+  promoteNext();
+  scheduleNextSpawn();
+
+  if (State.tickHandle) cancelAnimationFrame(State.tickHandle);
+  const tick = (t) => {
+    if (State.gameOver) return;
+    render();
+    State.tickHandle = requestAnimationFrame(tick);
+  };
+  State.tickHandle = requestAnimationFrame(tick);
+
+  if (State.decayHandle) clearInterval(State.decayHandle);
+  State.decayHandle = setInterval(()=>{
+    if (State.gameOver) return;
+    // odpočet směny
+    if (State.shiftRemaining > 0){
+      State.shiftRemaining -= 1;
+      if (State.shiftRemaining <= 0){ endShift(); }
+    }
+    // spokojenost
+    if (State.active){
+      State.active.S = clamp(State.active.S - State.active.persona.decayPerSecond, CONFIG.satisfaction.clampMin, CONFIG.satisfaction.clampMax);
+    }
+    render();
+  }, 1000);
+}
+
+function endShift(){
+  if (State.gameOver) return;
+  State.gameOver = true;
+  showReport('Směna skončila', false);
+}
+
+function gameOver(reason){
+  if (State.gameOver) return;
+  State.gameOver = true;
+  logEvent(`Konec hry: ${reason}`);
+  showReport(reason || 'Konec hry', true);
+}
+
+// -------------------------------
+// UI: render
+// -------------------------------
+const el = (id)=>document.getElementById(id);
+
+function render(){
+  // toggle inline payment panel
+  const pp = el('paymentPanel'); if (pp) pp.style.display = 'block';
+  // metrics (guard, aby nespadlo při chybě v DOM)
+  const tEl = el('time'); if (tEl) tEl.textContent = fmtTime(State.shiftRemaining);
+  const bEl = el('bank'); if (bEl) bEl.textContent = `${State.bank} Kč`;
+  const sEl = el('served'); if (sEl) sEl.textContent = `${State.customersServed}`;
+  const rep = State.customersServed ? (State.reputationSum/State.customersServed).toFixed(1) : '0.0';
+  const rEl = el('reputation'); if (rEl) rEl.textContent = rep;
+
+  // queue heads
+  const q = el('queueHeads'); if (q){
+    q.innerHTML = '';
+    const heads = Math.min(CONFIG.spawn.maxQueueVisual, State.queue.length);
+    for (let i=0;i<heads;i++){ const d = document.createElement('div'); d.className='head'; d.textContent = '🙂'; q.appendChild(d);} 
+  }
+  const qcEl = el('queueCount'); if (qcEl) qcEl.textContent = String(State.queue.length);
+  const qt = el('queueTop'); if (qt) qt.textContent = String(State.queue.length);
+
+  // customer bubble
+  if (State.active){
+    const ol = el('orderLabel'); if (ol) ol.textContent = formatOrderLabel(State.active.order);
+    const ph = el('phase'); if (ph) ph.textContent = State.active.phase;
+    const sb = el('sbar'); if (sb) sb.style.width = `${State.active.S}%`;
+  } else {
+    const ol = el('orderLabel'); if (ol) ol.textContent = '—';
+    const ph = el('phase'); if (ph) ph.textContent = '—';
+    const sb = el('sbar'); if (sb) sb.style.width = '0%';
+  }
+
+  // ordered vs prepared lists
+  const OL = el('orderedList'); if (OL) OL.innerHTML = '';
+  const PL = el('preparedList'); if (PL) PL.innerHTML = '';
+  if (State.active && State.active.order && OL && PL){
+    for (const it of State.active.order.items){ OL.appendChild(tag(it.size)); }
+    for (const it of State.active.order.prepared){ PL.appendChild(tag(it.size)); }
+  }
+
+  // current item panel
+  renderCurrentItemPanel();
+
+  // dev tables
+  if (document.getElementById('dev').style.display !== 'none'){
+    renderDev();
+  }
+}
+
+function renderCurrentItemPanel(){
+  const lbl = el('curItemLabel');
+  const ing = el('curItemIngredients');
+  if (!lbl || !ing) return;
+  if (State.currentItem){
+    lbl.textContent = `Káva ${State.currentItem.size}`;
+    const a = State.currentItem.actual;
+    const parts = [];
+    if (a.dose_coffee) parts.push(`káva ×${a.dose_coffee}`);
+    // do budoucna: mléko, sirupy…
+    ing.textContent = parts.length ? parts.join(' + ') : 'zatím bez ingrediencí';
+  } else {
+    lbl.textContent = '—';
+    ing.textContent = '—';
+  }
+}
+
+function tag(size){
+  const span = document.createElement('span');
+  span.className = 'tag ' + size.toLowerCase();
+  span.textContent = 'Káva ' + size;
+  return span;
+}
+
+function fmtTime(s){
+  s = Math.max(0, Math.floor(s));
+  const m = Math.floor(s/60), r = s%60;
+  return String(m).padStart(2,'0')+":"+String(r).padStart(2,'0');
+}
+
+function flashPhase(msg){
+  const elp = el('phase'); if (!elp) return;
+  const old = elp.textContent;
+  elp.textContent = msg;
+  elp.style.color = '#a33';
+  setTimeout(()=>{ elp.textContent = State.active?State.active.phase:'—'; elp.style.color=''; }, 900);
+}
+
+// -------------------------------
+// Platba inline vpravo
+// -------------------------------
+function showPayErrorInline(v){ const e = el('payErrorInline'); if (e) e.style.display = v?'block':'none'; }
+function buildKeypad(){
+  const KP = el('keypadInline'); if (!KP) return; KP.innerHTML = '';
+  const keys = ['7','8','9','4','5','6','1','2','3','C','0','←'];
+  keys.forEach(k=>{
+    const b = document.createElement('button'); b.textContent = k; b.addEventListener('click',()=>{
+      const input = el('payInputInline');
+      if (k==='C') input.value=''; else if (k==='←') input.value = input.value.slice(0,-1); else input.value += k;
+      showPayErrorInline(false);
+    }); KP.appendChild(b);
+  });
+}
+
+// -------------------------------
+// Dev console
+// -------------------------------
+function renderDev(){
+  const rows = (obj)=> Object.entries(obj).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  const avg = State.customersServed ? (State.reputationSum/State.customersServed).toFixed(1) : '0.0';
+  el('tblGame').innerHTML = rows({
+    Time: fmtTime(State.shiftRemaining),
+    Bank: `${State.bank} / start ${State.bankStart} / profit ${State.bank-State.bankStart}`,
+    Customers: `${State.customersServed}`,
+    Reputation: `${avg}`,
+    Queue: State.queue.length,
+  });
+  const cust = State.active ? {
+    Persona: `${State.active.personaId} (decay ${State.active.persona.decayPerSecond}/s)`,
+    S: State.active.S.toFixed(1),
+    Phase: State.active.phase,
+    Order: formatOrderLabel(State.active.order),
+    Prepared: State.active.order ? State.active.order.prepared.length + ' ks' : '—',
+  } : { Persona: '-', S: '-', Phase: '-', Order: '-', Prepared: '-' };
+  el('tblCust').innerHTML = rows(cust);
+
+  const curIt = State.currentItem ? JSON.stringify(State.currentItem.actual) : '-';
+  const must = State.currentItem ? JSON.stringify(CONFIG.recipes.coffee[State.currentItem.size]) : '-';
+  el('tblOrder').innerHTML = rows({ CurrentItem: curIt, Recipe: must, Valid: '—' });
+
+  el('tblEco').innerHTML = rows({ TotalSpent: State.totalSpent, TotalRevenue: State.totalRevenue, TipModel: CONFIG.economy.tip.formula });
+
+  const log = el('eventLog');
+  log.innerHTML = State.eventLog.map(l=>`<div>${escapeHtml(l)}</div>`).join('');
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+// -------------------------------
+// Report overlay
+// -------------------------------
+function showReport(title, isGameOver){
+  el('reportTitle').textContent = title;
+  const avg = State.customersServed ? (State.reputationSum/State.customersServed).toFixed(1) : '0.0';
+  const body = `
+    <div>Obslouženo: <strong>${State.customersServed}</strong></div>
+    <div>Tržby: <strong>${State.totalRevenue} Kč</strong> &nbsp; Náklady: <strong>${State.totalSpent} Kč</strong> &nbsp; Profit: <strong>${State.bank - State.bankStart} Kč</strong></div>
+    <div>Průměrná spokojenost: <strong>${avg}</strong></div>
+  `;
+  el('reportBody').innerHTML = body;
+  el('reportOverlay').style.display = 'flex';
+}
+
+function hideReport(){ el('reportOverlay').style.display = 'none'; }
+
+// -------------------------------
+// Drátování ovládání
+// -------------------------------
+function bind(){
+  el('btnGreeting').onclick = ()=>{ 
+    if(State.active){ 
+      const isNewOrder = !State.active.order;
+      if (isNewOrder){
+        State.active.order = newOrderWeighted();
+        logEvent('Zadána objednávka zákazníka');
+      }
+      const d=applyReward(CONFIG.satisfaction.base.goodGreeting); 
+      logEvent('Replika: greeting',0,d); 
+      render(); 
+    } 
+  };
+  el('btnConfirm').onclick = ()=>{ if(State.active){ if(!State.active.order){ flashPhase('Nejprve přijmi objednávku.'); return; } const d=applyReward(CONFIG.satisfaction.base.goodGreeting); logEvent('Replika: confirm',0,d); render(); toPreparing(); } };
+  el('btnBad').onclick      = ()=>{ if(State.active){ const d=applyPenalty(CONFIG.satisfaction.base.badReply); logEvent('Replika: nevhodná',0,d); render(); } };
+
+  el('btnSizeS').onclick = ()=> pickSize('S');
+  el('btnSizeM').onclick = ()=> pickSize('M');
+  el('btnSizeL').onclick = ()=> pickSize('L');
+  el('btnPot').onclick   = ()=> tapPot();
+  el('btnFinalize').onclick = ()=> finalizeItem();
+  el('btnTrash').onclick = ()=> trashItem();
+  
+  el('btnPayConfirmInline').onclick = ()=>{
+    const v = parseInt(el('payInputInline').value||'0',10);
+    finishPayment(isFinite(v)?v:0);
+  };
+
+  el('btnToggleDev').onclick = toggleDev;
+  document.addEventListener('keydown', (e)=>{ if (e.key==='d' || e.key==='D') toggleDev(); });
+  el('btnRestart').onclick = ()=>{ hideReport(); startShift(); render(); };
+
+  buildKeypad();
+}
+
+function toggleDev(){
+  const dv = el('dev');
+  dv.style.display = dv.style.display==='none' ? 'block' : 'none';
+  render();
+}
+
+// -------------------------------
+// Self-testy (sanity checks)
+// -------------------------------
+function runTests(){
+  const tests = [];
+  const assert = (name, cond)=> tests.push({name, pass: !!cond});
+
+  // DOM existence tests
+  ['time','bank','served','reputation','sbar','queueHeads','queueCount','bubble','orderLabel','phase','orderedList','preparedList','paymentPanel','payInputInline','keypadInline','btnPayConfirmInline','payErrorInline','reportOverlay','btnRestart']
+    .forEach(id=> assert(`#${id} exists`, !!el(id)));
+
+  // Pure function tests$1// clamp tests
+  // payment blocking tests
+  const keepActive = State.active, keepServed = State.customersServed;
+  State.active = { S:70, order:{ items:[{productId:'coffee', size:'S'}], prepared: [] } };
+  assert('finishPayment blocked when not prepared', finishPayment(CONFIG.pricesCZK.coffee.S)===false);
+  State.active = keepActive; State.customersServed = keepServed;
+  assert('clamp below', clamp(-5,0,10)===0);
+  assert('clamp inside', clamp(7,0,10)===7);
+  assert('clamp above', clamp(15,0,10)===10);
+
+  // Report
+  const failed = tests.filter(t=>!t.pass);
+  if (failed.length){
+    console.warn('Self-tests failed:', failed.map(f=>f.name));
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:8px;bottom:8px;background:#fff3f3;border:1px solid #ffcccc;color:#a00;padding:8px 10px;border-radius:8px;z-index:9999;font:12px/1.3 system-ui';
+    box.textContent = `Self-testy neprošly: ${failed.length}. Zkontroluj konzoli.`;
+    document.body.appendChild(box);
+  } else {
+    console.log('Self-tests OK');
+  }
+}
+
+// -------------------------------
+// Init
+// -------------------------------
+runTests();
+bind();
+startShift();
+render();
+</script>
+</body>
+</html>
