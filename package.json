@@ -1,0 +1,15 @@
+{
+  "name": "cafe-lili-game",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Coffee stand game (vanilla JS) with simple bundling via esbuild",
+  "scripts": {
+    "bundle": "esbuild docs/js/main.js --bundle --format=iife --platform=browser --sourcemap --outfile=docs/app.bundle.js",
+    "bundle:min": "esbuild docs/js/main.js --bundle --format=iife --platform=browser --minify --sourcemap --outfile=docs/app.bundle.js",
+    "watch": "esbuild docs/js/main.js --bundle --format=iife --platform=browser --sourcemap --outfile=docs/app.bundle.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
+}
+

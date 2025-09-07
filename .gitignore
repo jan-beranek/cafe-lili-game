@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Build outputs and caches
+dist/
+build/
+.cache/
+.parcel-cache/
+.eslintcache
+coverage/
+.nyc_output/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Generated app bundle
+docs/app.bundle.js
+docs/app.bundle.js.map
